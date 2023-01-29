@@ -6,8 +6,8 @@ import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.provider.MediaStore
 import android.view.Menu
@@ -16,23 +16,24 @@ import android.widget.ImageView
 import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.canhub.cropper.CropImageContract
 import com.canhub.cropper.CropImageView
 import com.example.recognizetext.clients.CarroClient
 import com.google.android.material.button.MaterialButton
-import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import java.util.function.Consumer
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.WriterException
+import com.google.zxing.qrcode.QRCodeWriter
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var inputImageBtn: MaterialButton
     private lateinit var recognizeTextBtn: MaterialButton
-//    private lateinit var imageIv: ImageView;
+    private lateinit var ivQrCode: ImageView;
     private lateinit var cropIv: CropImageView
     private lateinit var recognizedTextEt: EditText
 
@@ -56,7 +57,7 @@ class MainActivity : AppCompatActivity() {
 
         inputImageBtn = findViewById(R.id.inputImageBtn)
         recognizeTextBtn = findViewById(R.id.recognizeTextBtn)
-//        imageIv = findViewById(R.id.imageIv)
+        ivQrCode = findViewById(R.id.ivQrCode)
         cropIv = findViewById(R.id.cropIv)
         recognizedTextEt = findViewById(R.id.recognizedTextEt)
 
@@ -89,11 +90,8 @@ class MainActivity : AppCompatActivity() {
         try {
             val croppedImage: Bitmap? = cropIv.getCroppedImage()
 
-            // val inputImage = InputImage.fromFilePath(this, imageUri!!)
-
             progressDialog.setMessage("Recognizing text")
 
-//            val textTaskResult = textRecognizer.process(inputImage)
             val textTaskResult = croppedImage?.let {
                 textRecognizer.process(it, 0)
                     .addOnSuccessListener { value ->
@@ -122,10 +120,13 @@ class MainActivity : AppCompatActivity() {
                         }
 
                         try {
-                            if (placa != null) {
+                            if (placa == null) {
+                                showToast("Reconhecimento da placa falhou.$capturedText")
+                            } else {
                                 CarroClient.findByPlaca(placa,
                                     { placaResponse ->
-                                        showToast(placaResponse.toString())
+                                        val qrCode = generateQrCode(placaResponse.toString())
+                                        ivQrCode.setImageBitmap(qrCode)
                                     },
                                     { responseBody ->
                                         showToast(responseBody.string())
@@ -143,6 +144,28 @@ class MainActivity : AppCompatActivity() {
         } catch (e: java.lang.Exception) {
             progressDialog.dismiss()
             showToast("Failed to prepare image due to ${e.message}")
+        }
+    }
+
+    private fun generateQrCode(data: String): Bitmap {
+        val qrCodeWriter = QRCodeWriter()
+        try {
+            val bitMatrix = qrCodeWriter.encode(
+                data,
+                BarcodeFormat.QR_CODE,
+                512, 512
+            )
+            val width = bitMatrix.width
+            val height = bitMatrix.height
+            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+            for (x in 0 until width) {
+                for (y in 0 until height) {
+                    bmp.setPixel(x, y, if (bitMatrix[x, y]) Color.BLACK else Color.WHITE)
+                }
+            }
+            return bmp
+        } catch (e: WriterException) {
+            throw e
         }
     }
 
