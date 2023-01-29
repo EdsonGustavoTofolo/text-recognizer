@@ -96,45 +96,9 @@ class MainActivity : AppCompatActivity() {
                 textRecognizer.process(it, 0)
                     .addOnSuccessListener { value ->
 
-                        progressDialog.dismiss()
-
                         recognizedTextEt.setText(value.text)
 
-                        val capturedText = value.text
-
-                        val capturedTexts = capturedText.split("\n")
-
-                        var placa: String? = null
-
-                        for (text: String in capturedTexts) {
-                            if (text.matches("^([A-Z]{3})(\\d|O|-|\\s)?([A-Z]{1}\\d{2}|\\d{4})$".toRegex())) {
-                                placa = text.trim()
-                                val fourthChar = placa.substring(3, 4)
-                                if (fourthChar == "O") {
-                                    placa = placa.substring(0, 3) + "0" + placa.substring(4)
-                                } else if (fourthChar == "-" || fourthChar == " ") {
-                                    placa = placa.replace("(-|\\s)".toRegex(), "")
-                                }
-                                break
-                            }
-                        }
-
-                        try {
-                            if (placa == null) {
-                                showToast("Reconhecimento da placa falhou.$capturedText")
-                            } else {
-                                CarroClient.findByPlaca(placa,
-                                    { placaResponse ->
-                                        val qrCode = generateQrCode(placaResponse.toString())
-                                        ivQrCode.setImageBitmap(qrCode)
-                                    },
-                                    { responseBody ->
-                                        showToast(responseBody.string())
-                                    })
-                            }
-                        } catch (e: java.lang.Exception) {
-                            e.message?.let { it1 -> showToast(it1) }
-                        }
+                        recognizePlateFromText(value.text)
                     }
                     .addOnFailureListener { e ->
                         progressDialog.dismiss()
@@ -147,7 +111,56 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun recognizePlateFromText(value: String) {
+        progressDialog.setMessage("Recognizing plate")
+
+        val capturedTexts = value.split("\n")
+
+        var placa: String? = null
+
+        for (text: String in capturedTexts) {
+            if (text.matches("^([A-Z]{3})(\\d|O|-|\\s)?([A-Z]{1}\\d{2}|\\d{4})$".toRegex())) {
+                placa = text.trim()
+                val fourthChar = placa.substring(3, 4)
+                if (fourthChar == "O") {
+                    placa = placa.substring(0, 3) + "0" + placa.substring(4)
+                } else if (fourthChar == "-" || fourthChar == " ") {
+                    placa = placa.replace("(-|\\s)".toRegex(), "")
+                }
+                break
+            }
+        }
+
+        try {
+            if (placa == null) {
+                progressDialog.dismiss()
+                showToast("It was not possible to recognize the license plate of the car. Try again. $value")
+            } else {
+                recognizedTextEt.setText(placa)
+
+                progressDialog.setMessage("Finding car info by plate")
+
+                CarroClient.findByPlaca(placa,
+                    { placaResponse ->
+                        val qrCode = generateQrCode(placaResponse.toString())
+                        ivQrCode.setImageBitmap(qrCode)
+
+                        progressDialog.dismiss()
+                    },
+                    { responseBody ->
+                        progressDialog.dismiss()
+                        showToast(responseBody.string())
+                    })
+            }
+        } catch (e: java.lang.Exception) {
+            progressDialog.dismiss()
+            e.message?.let { it1 -> showToast(it1) }
+        }
+    }
+
     private fun generateQrCode(data: String): Bitmap {
+        progressDialog.setMessage("Generating QRCode")
+
         val qrCodeWriter = QRCodeWriter()
         try {
             val bitMatrix = qrCodeWriter.encode(
@@ -165,6 +178,7 @@ class MainActivity : AppCompatActivity() {
             }
             return bmp
         } catch (e: WriterException) {
+            progressDialog.dismiss()
             throw e
         }
     }
@@ -179,6 +193,8 @@ class MainActivity : AppCompatActivity() {
 
         popupMenu.setOnMenuItemClickListener {
             menuItem ->
+
+            ivQrCode.setImageBitmap(null)
 
             val id = menuItem.itemId
             if (id == 1) {
