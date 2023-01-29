@@ -42,13 +42,19 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <com.google.android.material.imageview.ShapeableImageView
-                android:id="@+id/imageIv"
-                app:strokeWidth="2dp"
-                android:adjustViewBounds="true"
-                android:src="@drawable/baseline_image_24"
+<!--            <com.google.android.material.imageview.ShapeableImageView-->
+<!--                android:id="@+id/imageIv"-->
+<!--                app:strokeWidth="2dp"-->
+<!--                android:adjustViewBounds="true"-->
+<!--                android:src="@drawable/baseline_image_24"-->
+<!--                android:layout_width="match_parent"-->
+<!--                android:layout_height="wrap_content"/>-->
+
+            <com.canhub.cropper.CropImageView
+                android:id="@+id/cropIv"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"/>
+                android:layout_height="0dp"
+                android:layout_weight="1" />
 
             <TextView
                 style="@style/TextAppearance.MaterialComponents.Headline6"

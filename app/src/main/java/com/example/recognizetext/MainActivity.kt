@@ -5,6 +5,7 @@ import android.app.ProgressDialog
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -17,18 +18,23 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.canhub.cropper.CropImageContract
+import com.canhub.cropper.CropImageView
+import com.example.recognizetext.clients.CarroClient
 import com.google.android.material.button.MaterialButton
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import java.util.function.Consumer
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var inputImageBtn: MaterialButton;
-    private lateinit var recognizeTextBtn: MaterialButton;
-    private lateinit var imageIv: ImageView;
-    private lateinit var recognizedTextEt: EditText;
+    private lateinit var inputImageBtn: MaterialButton
+    private lateinit var recognizeTextBtn: MaterialButton
+//    private lateinit var imageIv: ImageView;
+    private lateinit var cropIv: CropImageView
+    private lateinit var recognizedTextEt: EditText
 
     private companion object {
         private const val CAMERA_REQUEST_CODE = 100
@@ -50,7 +56,8 @@ class MainActivity : AppCompatActivity() {
 
         inputImageBtn = findViewById(R.id.inputImageBtn)
         recognizeTextBtn = findViewById(R.id.recognizeTextBtn)
-        imageIv = findViewById(R.id.imageIv)
+//        imageIv = findViewById(R.id.imageIv)
+        cropIv = findViewById(R.id.cropIv)
         recognizedTextEt = findViewById(R.id.recognizedTextEt)
 
         cameraPermissions = arrayOf(android.Manifest.permission.CAMERA, android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
@@ -80,23 +87,59 @@ class MainActivity : AppCompatActivity() {
         progressDialog.show()
 
         try {
-            val inputImage = InputImage.fromFilePath(this, imageUri!!)
+            val croppedImage: Bitmap? = cropIv.getCroppedImage()
+
+            // val inputImage = InputImage.fromFilePath(this, imageUri!!)
 
             progressDialog.setMessage("Recognizing text")
 
-            val textTaskResult = textRecognizer.process(inputImage)
-                .addOnSuccessListener {
-                    value ->
+//            val textTaskResult = textRecognizer.process(inputImage)
+            val textTaskResult = croppedImage?.let {
+                textRecognizer.process(it, 0)
+                    .addOnSuccessListener { value ->
 
-                    progressDialog.dismiss()
+                        progressDialog.dismiss()
 
-                    recognizedTextEt.setText(value.text)
-                }
-                .addOnFailureListener {
-                    e ->
-                    progressDialog.dismiss()
-                    showToast("Failed to recognize text due to ${e.message}")
-                }
+                        recognizedTextEt.setText(value.text)
+
+                        val capturedText = value.text
+
+                        val capturedTexts = capturedText.split("\n")
+
+                        var placa: String? = null
+
+                        for (text: String in capturedTexts) {
+                            if (text.matches("^([A-Z]{3})(\\d|O|-|\\s)?([A-Z]{1}\\d{2}|\\d{4})$".toRegex())) {
+                                placa = text.trim()
+                                val fourthChar = placa.substring(3, 4)
+                                if (fourthChar == "O") {
+                                    placa = placa.substring(0, 3) + "0" + placa.substring(4)
+                                } else if (fourthChar == "-" || fourthChar == " ") {
+                                    placa = placa.replace("(-|\\s)".toRegex(), "")
+                                }
+                                break
+                            }
+                        }
+
+                        try {
+                            if (placa != null) {
+                                CarroClient.findByPlaca(placa,
+                                    { placaResponse ->
+                                        showToast(placaResponse.toString())
+                                    },
+                                    { responseBody ->
+                                        showToast(responseBody.string())
+                                    })
+                            }
+                        } catch (e: java.lang.Exception) {
+                            e.message?.let { it1 -> showToast(it1) }
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        progressDialog.dismiss()
+                        showToast("Failed to recognize text due to ${e.message}")
+                    }
+            }
         } catch (e: java.lang.Exception) {
             progressDialog.dismiss()
             showToast("Failed to prepare image due to ${e.message}")
@@ -146,7 +189,8 @@ class MainActivity : AppCompatActivity() {
             val data = result.data
             imageUri = data!!.data
 
-            imageIv.setImageURI(imageUri)
+//            imageIv.setImageURI(imageUri)
+            cropIv.setImageUriAsync(imageUri)
         } else {
             showToast("Cancelled...!")
         }
@@ -168,7 +212,8 @@ class MainActivity : AppCompatActivity() {
     private val cameraActivityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            imageIv.setImageURI(imageUri)
+            // imageIv.setImageURI(imageUri)
+            cropIv.setImageUriAsync(imageUri)
         } else {
             showToast("Cancelled...!")
         }
