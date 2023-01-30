@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
 import android.view.Menu
+import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.PopupMenu
@@ -28,6 +29,8 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.WriterException
 import com.google.zxing.qrcode.QRCodeWriter
+import java.io.ByteArrayOutputStream
+import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
@@ -36,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ivQrCode: ImageView;
     private lateinit var cropIv: CropImageView
     private lateinit var recognizedTextEt: EditText
+    private lateinit var shareQrCodeBtn: Button
 
     private companion object {
         private const val CAMERA_REQUEST_CODE = 100
@@ -43,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var imageUri: Uri? = null
+    private lateinit var qrCodeImage: Bitmap;
 
     private lateinit var cameraPermissions: Array<String>
     private lateinit var storagePermissions: Array<String>
@@ -60,6 +65,7 @@ class MainActivity : AppCompatActivity() {
         ivQrCode = findViewById(R.id.ivQrCode)
         cropIv = findViewById(R.id.cropIv)
         recognizedTextEt = findViewById(R.id.recognizedTextEt)
+        shareQrCodeBtn = findViewById(R.id.shareQrCodeBtn)
 
         cameraPermissions = arrayOf(android.Manifest.permission.CAMERA, android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
         storagePermissions = arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
@@ -81,6 +87,25 @@ class MainActivity : AppCompatActivity() {
                 recognizeTextFromImage()
             }
         }
+
+        shareQrCodeBtn.setOnClickListener {
+            if (qrCodeImage == null) {
+                showToast("Recognize text first")
+            } else {
+                val os = ByteArrayOutputStream();
+
+                qrCodeImage.compress(Bitmap.CompressFormat.PNG, 100, os)
+
+                val path = MediaStore.Images.Media.insertImage(contentResolver, qrCodeImage, "QRCode", "QRCode with car info")
+
+                val intentShare = Intent(Intent.ACTION_SEND)
+                intentShare.type = "image/*"
+                intentShare.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                intentShare.putExtra(Intent.EXTRA_STREAM, Uri.parse(path))
+
+                startActivity(intentShare)
+            }
+        }
     }
 
     private fun recognizeTextFromImage() {
@@ -93,7 +118,9 @@ class MainActivity : AppCompatActivity() {
             progressDialog.setMessage("Recognizing text")
 
             val textTaskResult = croppedImage?.let {
-                textRecognizer.process(it, 0)
+                img ->
+
+                textRecognizer.process(img, 0)
                     .addOnSuccessListener { value ->
 
                         recognizedTextEt.setText(value.text)
@@ -142,8 +169,9 @@ class MainActivity : AppCompatActivity() {
 
                 CarroClient.findByPlaca(placa,
                     { placaResponse ->
-                        val qrCode = generateQrCode(placaResponse.toString())
-                        ivQrCode.setImageBitmap(qrCode)
+                        qrCodeImage = generateQrCode(placaResponse.toString())
+
+                        ivQrCode.setImageBitmap(qrCodeImage)
 
                         progressDialog.dismiss()
                     },

@@ -75,6 +75,15 @@
             android:layout_marginStart="50dp"
             android:src="@drawable/baseline_qr_code_24"/>
 
+
+
     </LinearLayout>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/shareQrCodeBtn"
+        android:text="Share"
+        app:icon="@drawable/baseline_share_24"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
 
 </LinearLayout>
